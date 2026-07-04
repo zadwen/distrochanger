@@ -5,15 +5,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
-# shellcheck source=lib/detect.sh
 source "$SCRIPT_DIR/detect.sh"
-# shellcheck source=lib/pkgmanager.sh
 source "$SCRIPT_DIR/pkgmanager.sh"
-# shellcheck source=lib/drivers.sh
 source "$SCRIPT_DIR/drivers.sh"
-# shellcheck source=lib/gaming-stack.sh
 source "$SCRIPT_DIR/gaming-stack.sh"
-# shellcheck source=lib/tweaks.sh
 source "$SCRIPT_DIR/tweaks.sh"
 
 if [[ "${EUID}" -eq 0 ]]; then
