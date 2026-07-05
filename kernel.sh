@@ -113,6 +113,12 @@ install_linux_zen() {
 
 kernel_menu() {
   echo ""
+  echo "[Experimental] Performance-tuned kernel (XanMod/Liquorix/linux-zen)"
+  if ! tier_enabled experimental; then
+    echo "  Experimental tier isn't enabled — skipping. Enable it with"
+    echo "  './gameify.sh --tiers' if you want to install a performance kernel."
+    return 0
+  fi
   echo "Optional: install a performance-tuned kernel? This is opt-in — the stock"
   echo "kernel your distro ships is fine for most people, but these offer lower"
   echo "latency scheduling and other tweaks some gamers prefer."

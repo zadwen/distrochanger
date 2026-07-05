@@ -279,8 +279,14 @@ per_game_proton_menu() {
 
 gaming_stack_menu() {
   echo ""
-  echo "Core gaming stack: Steam, Wine, GameMode, Lutris, MangoHud, ProtonUp-Qt,"
-  echo "Proton-GE (auto-installed direct from GitHub), Gamescope, vkBasalt"
+  echo "[Standard] Core gaming stack: Steam, Wine, GameMode, Lutris, MangoHud, ProtonUp-Qt"
+  if tier_enabled advanced; then
+    echo "[Advanced] Also included: Proton-GE (auto-installed/updated from GitHub),"
+    echo "           Gamescope, vkBasalt"
+  else
+    echo "[Advanced tier disabled] Proton-GE auto-update, Gamescope, and vkBasalt will"
+    echo "be skipped — enable Advanced via './gameify.sh --tiers' to include them."
+  fi
   read -r -p "Also install Heroic Games Launcher (Epic/GOG/Amazon)? [y/N] " want_heroic
   read -r -p "Proceed with install? [Y/n] " answer
   answer=${answer:-Y}
@@ -298,17 +304,21 @@ gaming_stack_menu() {
   install_lutris || echo "  Lutris install failed — skipping, continuing with the rest."
   install_mangohud || true
   install_protonup || echo "  ProtonUp-Qt install failed — skipping, continuing with the rest."
-  install_or_update_proton_ge || echo "  GE-Proton refresh failed — skipping, continuing with the rest."
-  install_gamescope || true
-  install_vkbasalt || echo "  vkBasalt install failed — skipping, continuing with the rest."
+  if tier_enabled advanced; then
+    install_or_update_proton_ge || echo "  GE-Proton refresh failed — skipping, continuing with the rest."
+    install_gamescope || true
+    install_vkbasalt || echo "  vkBasalt install failed — skipping, continuing with the rest."
+  fi
   if [[ "$want_heroic" =~ ^[Yy]$ ]]; then
     install_heroic || echo "  Heroic install failed — skipping."
   fi
   echo "==> Gaming stack installed."
 
-  echo ""
-  read -r -p "Set a specific Proton build for a specific game now? [y/N] " want_proton_override
-  if [[ "$want_proton_override" =~ ^[Yy]$ ]]; then
-    per_game_proton_menu
+  if tier_enabled advanced; then
+    echo ""
+    read -r -p "[Advanced] Set a specific Proton build for a specific game now? [y/N] " want_proton_override
+    if [[ "$want_proton_override" =~ ^[Yy]$ ]]; then
+      per_game_proton_menu
+    fi
   fi
 }

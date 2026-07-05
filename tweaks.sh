@@ -113,7 +113,7 @@ fix_broken_wine_prefixes() {
 
 system_tweaks_menu() {
   echo ""
-  read -r -p "Apply optional system tweaks + auto-fixes (Vulkan check, vm.max_map_count, gamemode group, Wine prefix scan)? [Y/n] " answer
+  read -r -p "[Standard] Apply system tweaks + auto-fixes (Vulkan check, vm.max_map_count, gamemode group, Wine prefix scan)? [Y/n] " answer
   answer=${answer:-Y}
   if [[ ! "$answer" =~ ^[Yy]$ ]]; then
     echo "Skipping system tweaks."

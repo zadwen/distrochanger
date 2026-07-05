@@ -27,6 +27,11 @@ The system-analyzer/auto-healing pass added:
       App handed off to Lutris's maintained install scripts — `apps.sh`
 - [x] Self-managed weekly cron job (`update.sh --install-cron`/
       `--remove-cron`), running the auto-heal scan on every cycle
+- [x] **Standard / Advanced / Experimental tiers** — every install and
+      tweak is now labeled by risk level, Standard runs by default, and
+      Advanced/Experimental are opt-in choices saved to
+      `~/.config/gameify/tiers.conf` (`./gameify.sh --tiers` to change) —
+      `pkgmanager.sh` (framework) + every module (labeling/gating)
 
 ## Where gameify stands today
 
@@ -57,9 +62,11 @@ model, not just a different package list.
 
 - [ ] `--dry-run` flag across every module — print every command instead of
       running it, so people can audit before trusting it with sudo.
-- [ ] Config file (`~/.config/gameify/config.toml` or similar) to save
-      choices (which driver, whether to install Heroic, kernel choice) so
-      re-runs and `update.sh` don't have to re-ask.
+- [ ] Expand `~/.config/gameify/` beyond tiers to remember per-run choices
+      too (which driver, whether to install Heroic, kernel choice) so
+      re-runs and `update.sh` don't have to re-ask about those either — the
+      tier config added this cycle is the first piece of this, not the
+      whole thing.
 - [ ] Per-run JSON log (not just human-readable) so results are scriptable —
       useful for the community driver-testing idea below.
 - [ ] Expand openSUSE support to be first-class instead of best-effort —
@@ -89,6 +96,41 @@ model, not just a different package list.
       **Contributing** below) and add an opt-in "send anonymized signature
       counts" telemetry mode, off by default, purely to prioritize which
       signatures are worth adding next.
+
+## GUI evolution — learning from Windows tweak-utility tools
+
+Tools like Chris Titus Tech's WinUtil proved a useful shape for this kind of
+project: start as a script, categorize everything by risk (safe tweaks vs.
+performance vs. experimental), add repair/troubleshooting tools alongside
+the tweaks, then grow update management, and only *then* layer a GUI on top
+once the underlying logic is solid. `gameify` is deliberately following that
+same order rather than jumping straight to a GUI:
+
+1. **Script + tiers (done this cycle)** — Standard/Advanced/Experimental
+   categorization across every module, so the risk model exists before any
+   UI has to represent it.
+2. **Repair tools (done this cycle)** — `heal.sh`'s log-scanning auto-fixes
+   are gameify's equivalent of WinUtil's "repair common Windows problems"
+   panel, just aimed at Linux gaming's actual failure modes (Vulkan, Wine
+   prefixes, `vm.max_map_count`, GameMode).
+3. **Update management (done this cycle)** — `update.sh` plus self-managed
+   cron, the equivalent of WinUtil's scheduled-maintenance angle.
+4. **Minimal TUI (near-term, see above)** — replace plain `select` menus
+   with a `gum`/`dialog`-based TUI that visually groups options by tier,
+   the first real "UI" pass before a graphical one.
+5. **Native GUI (medium-term)** — a GTK (to match GNOME, the default DE on
+   Fedora/most Nobara-adjacent setups) or Qt front-end that shells out to
+   the exact same `.sh` functions underneath, with three visually distinct
+   sections mirroring Standard/Advanced/Experimental, a live system-report
+   panel, and a one-click "run auto-heal now" button. The scripts stay the
+   source of truth and remain independently runnable from a terminal —
+   the GUI is a thin, optional layer, not a rewrite.
+6. **Optional web-local GUI (further out, exploratory)** — a small local
+   web server (e.g. `systemd --user` service serving on localhost) as an
+   alternative to a native GUI toolkit, for people who'd rather manage
+   gameify from a browser tab; only worth doing if there's real demand,
+   since it adds a whole extra maintenance surface (auth, CSRF, etc.) for
+   something that's supposed to be a trusted local tool.
 
 ## Medium-term: closing the distro-model gap
 

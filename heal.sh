@@ -169,7 +169,7 @@ run_auto_heal() {
 
 auto_heal_menu() {
   echo ""
-  read -r -p "Scan logs for known gaming bugs and auto-fix what's safe to fix? [Y/n] " answer
+  read -r -p "[Standard] Scan logs for known gaming bugs and auto-fix what's safe to fix? [Y/n] " answer
   answer=${answer:-Y}
   if [[ ! "$answer" =~ ^[Yy]$ ]]; then
     echo "Skipping auto-heal scan."

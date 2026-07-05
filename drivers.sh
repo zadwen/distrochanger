@@ -94,22 +94,29 @@ install_intel() {
 # ---------- Hybrid GPU (Optimus/PRIME) ----------
 
 install_prime_tools() {
-  echo "==> Setting up hybrid-GPU (Optimus/PRIME) tooling..."
-  case "$PKG_FAMILY" in
-    debian)
-      pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
-        echo "  nvidia-prime not available here — you can still force offload manually (see below)."
-      ;;
-    arch)
-      pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
-        echo "  nvidia-prime not available here — you can still force offload manually (see below)."
-      ;;
-    fedora|opensuse)
-      echo "  No dedicated PRIME package path automated for this distro yet."
-      echo "  Modern NVIDIA driver + Mesa handle render-offload without extra tooling on most setups."
-      ;;
-    *) : ;;
-  esac
+  echo "==> Hybrid-GPU (Optimus/PRIME) setup..."
+  if tier_enabled advanced; then
+    echo "[Advanced] Auto-configuring PRIME/Optimus tooling..."
+    case "$PKG_FAMILY" in
+      debian)
+        pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
+          echo "  nvidia-prime not available here — you can still force offload manually (see below)."
+        ;;
+      arch)
+        pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
+          echo "  nvidia-prime not available here — you can still force offload manually (see below)."
+        ;;
+      fedora|opensuse)
+        echo "  No dedicated PRIME package path automated for this distro yet."
+        echo "  Modern NVIDIA driver + Mesa handle render-offload without extra tooling on most setups."
+        ;;
+      *) : ;;
+    esac
+  else
+    echo "  [Advanced tier disabled] Skipping automatic PRIME package install and"
+    echo "  the default-GPU diagnostic/prime-run wrapper — enable Advanced via"
+    echo "  './gameify.sh --tiers' for that. Showing the manual fallback instead:"
+  fi
 
   echo ""
   echo "  Regardless of distro, you can force a specific game/app onto the discrete GPU"
@@ -121,8 +128,10 @@ install_prime_tools() {
   echo "    DRI_PRIME=1 %command%"
   log_change "Printed PRIME/Optimus manual offload launch-option tip"
 
-  echo ""
-  fix_default_gpu_selection || true
+  if tier_enabled advanced; then
+    echo ""
+    fix_default_gpu_selection || true
+  fi
 }
 
 # Installs a tiny `prime-run` wrapper into ~/.local/bin so any command can be
@@ -239,10 +248,10 @@ drivers_menu() {
   local detected="$1"
   echo ""
   echo "Detected GPU(s): ${detected:-none found}"
-  echo "Which driver(s) do you want to install?"
+  echo "Which driver(s) do you want to install? [Standard]"
   local -a opts=("Install detected ($detected)" "NVIDIA only" "AMD only" "Intel only")
   if detect_hybrid_gpu; then
-    opts+=("Fix wrong default GPU (hybrid laptop)")
+    opts+=("[Advanced] Fix wrong default GPU (hybrid laptop)")
   fi
   opts+=("Skip")
   select opt in "${opts[@]}"; do
@@ -251,7 +260,14 @@ drivers_menu() {
       "NVIDIA only") install_nvidia; break ;;
       "AMD only") install_amd; break ;;
       "Intel only") install_intel; break ;;
-      "Fix wrong default GPU (hybrid laptop)") fix_default_gpu_selection; break ;;
+      "[Advanced] Fix wrong default GPU (hybrid laptop)")
+        if ! tier_enabled advanced; then
+          echo "  This is an Advanced-tier feature. Running it anyway since you picked it"
+          echo "  explicitly (tier gating only affects what runs automatically)."
+        fi
+        fix_default_gpu_selection
+        break
+        ;;
       "Skip") echo "Skipping driver install."; break ;;
       *) echo "Invalid choice, pick a number from the list." ;;
     esac

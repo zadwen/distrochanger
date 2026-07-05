@@ -20,6 +20,11 @@ if [[ "${EUID}" -eq 0 ]]; then
   exit 1
 fi
 
+if [[ "${1:-}" == "--tiers" ]]; then
+  choose_tiers
+  exit 0
+fi
+
 echo "=================================================="
 echo " Gameify — turn any Linux distro into a gaming rig"
 echo "=================================================="
@@ -48,6 +53,8 @@ if [[ ! "$go" =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
+choose_tiers
+
 echo ""
 echo "==> Updating system packages..."
 pkg_update
@@ -64,6 +71,8 @@ echo ""
 echo "=================================================="
 echo " Summary — what actually changed"
 echo "=================================================="
+echo " Tiers active: Standard (always), Advanced=$ENABLE_ADVANCED, Experimental=$ENABLE_EXPERIMENTAL"
+echo ""
 if [[ "${#CHANGELOG[@]}" -eq 0 ]]; then
   echo " Nothing needed changing — your system was already set up."
 else

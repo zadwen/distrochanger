@@ -66,16 +66,25 @@ install_ea_app() {
 
 apps_menu() {
   echo ""
-  echo "Optional everyday apps (Flatpak, auto-update with the rest of your Flatpaks):"
+  echo "[Standard] Optional everyday apps (Flatpak, auto-update with your other Flatpaks):"
   local -a want=()
   read -r -p "Install Discord? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("discord")
   read -r -p "Install OBS Studio? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("obs")
   read -r -p "Install Spotify? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("spotify")
-  echo ""
-  echo "Battle.net and EA App have no native Linux client — installing them means"
-  echo "handing off to Lutris, which runs the official Windows installer under Wine."
-  read -r -p "Set up Battle.net via Lutris? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("battlenet")
-  read -r -p "Set up EA App via Lutris? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("ea_app")
+
+  if tier_enabled experimental; then
+    echo ""
+    echo "[Experimental] Battle.net and EA App have no native Linux client or Flatpak —"
+    echo "installing them hands off to Lutris, which runs the official Windows"
+    echo "installer under Wine. This works well in practice but is a less"
+    echo "officially-supported path than anything else in this menu."
+    read -r -p "Set up Battle.net via Lutris? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("battlenet")
+    read -r -p "Set up EA App via Lutris? [y/N] " a; [[ "$a" =~ ^[Yy]$ ]] && want+=("ea_app")
+  else
+    echo ""
+    echo "[Experimental tier disabled] Skipping Battle.net/EA App (Lutris-based)."
+    echo "Enable Experimental via './gameify.sh --tiers' if you want those offered."
+  fi
 
   if [[ "${#want[@]}" -eq 0 ]]; then
     echo "No optional apps selected."

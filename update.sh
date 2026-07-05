@@ -35,6 +35,7 @@ source "$SCRIPT_DIR/heal.sh"
 
 PKG_FAMILY="$(detect_distro_family)"
 export PKG_FAMILY
+load_tier_config
 
 # --install-cron: adds a weekly (Sunday 04:00) crontab entry that runs this
 # script non-interactively, then exits. Doesn't touch anything else.
@@ -77,6 +78,7 @@ fi
   echo ""
   echo "=================================================="
   echo " gameify update — $(date '+%Y-%m-%d %H:%M:%S')"
+  echo " Tiers: Standard (always), Advanced=$ENABLE_ADVANCED, Experimental=$ENABLE_EXPERIMENTAL"
   echo "=================================================="
 
   echo "==> Updating Flatpak apps..."
@@ -87,8 +89,13 @@ fi
     echo "  Flatpak not installed, skipping."
   fi
 
-  echo "==> Refreshing GE-Proton..."
-  install_or_update_proton_ge || echo "  GE-Proton refresh failed — will retry next run."
+  if tier_enabled advanced; then
+    echo "==> [Advanced] Refreshing GE-Proton..."
+    install_or_update_proton_ge || echo "  GE-Proton refresh failed — will retry next run."
+  else
+    echo "==> Advanced tier disabled — skipping GE-Proton refresh."
+    echo "    Run 'gameify.sh --tiers' to enable it."
+  fi
 
   echo "==> Running auto-heal log scan..."
   if [[ "$INTERACTIVE" == true ]]; then

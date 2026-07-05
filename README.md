@@ -5,6 +5,27 @@ installs, configures, and keeps updated everything needed to turn it into a
 gaming-ready desktop — the philosophy behind Nobara and Bazzite, but as a
 script you run on the distro you already have, instead of a whole new ISO.
 
+## Tiers: Standard / Advanced / Experimental
+
+Every install and tweak falls into one of three risk tiers, so you decide how
+far gameify reaches into your system instead of it deciding for you:
+
+| Tier | What's in it | Default |
+|---|---|---|
+| **Standard** | Native GPU drivers, Steam/Wine/GameMode/Lutris/MangoHud/ProtonUp-Qt, Vulkan/`vm.max_map_count`/gamemode-group fixes, Wine-prefix repair, auto-heal log scan, Discord/OBS/Spotify | Always on |
+| **Advanced** | PRIME/Optimus auto-config + default-GPU diagnostic, GE-Proton auto-install/update, Gamescope, vkBasalt, per-game Proton override | Asked once, saved |
+| **Experimental** | Performance kernels (XanMod/Liquorix/linux-zen), Battle.net/EA App via Lutris | Off unless you opt in |
+
+Pick tiers the first time you run `gameify.sh`, or any time with:
+```bash
+./gameify.sh --tiers
+```
+Your choice is saved to `~/.config/gameify/tiers.conf` and reused by both
+`gameify.sh` and `update.sh` — no re-asking on every run. Everything in
+every tier is reversible: old kernels stay in the bootloader menu, Lutris
+installs are just removable prefixes, and package installs go through your
+normal package manager (nothing atomic or hard to undo).
+
 ## What's actually "smart" about it
 
 - **Real system profiling** — reads CPU model/vendor/cores, detects every
@@ -65,15 +86,18 @@ that need it, and tells you before each one.
 ## What it installs / does
 
 **Drivers** (`drivers.sh`)
-- NVIDIA / AMD / Intel, matched to what was actually detected
-- Hybrid-GPU laptops get PRIME/Optimus tooling where packaged, plus a
+- `[Standard]` NVIDIA / AMD / Intel, matched to what was actually detected,
+  with Flatpak/community-repo fallback if a native package fails
+- `[Advanced]` Hybrid-GPU laptops get PRIME/Optimus auto-config plus a
   "Fix wrong default GPU" diagnostic that checks the active renderer and
   either explains why (and how to force the discrete GPU per-game) or
   confirms it's already correct
-- Installs a `~/.local/bin/prime-run` wrapper (`prime-run %command%` in a
-  Steam launch option, or `prime-run some-app` from a terminal)
+- `[Advanced]` Installs a `~/.local/bin/prime-run` wrapper (`prime-run
+  %command%` in a Steam launch option, or `prime-run some-app` from a
+  terminal) — the manual launch-option tip itself is always shown regardless
+  of tier, since it's just information
 
-**Performance kernel** (`kernel.sh`, opt-in, skipped by default)
+**Performance kernel** (`kernel.sh`, `[Experimental]`, off by default)
 - XanMod or Liquorix on Debian/Ubuntu (auto-detects your CPU's x86-64
   instruction level for XanMod's tuned builds)
 - linux-zen on Arch (official repo package, no AUR helper required)
@@ -83,29 +107,33 @@ that need it, and tells you before each one.
   MOK key) before asking whether to continue anyway
 
 **Gaming stack** (`gaming-stack.sh`)
-- Steam, Wine, GameMode, Lutris, MangoHud, ProtonUp-Qt, Heroic (optional)
-- GE-Proton — installed and kept current automatically from GitHub releases
-- Gamescope (SteamOS-style compositor, useful for handheld/couch setups)
-- vkBasalt (Vulkan post-processing: sharpening, color correction)
-- Per-game Proton override — writes a `CompatToolMapping` entry straight
-  into Steam's `config.vdf` for a given AppID (with an automatic backup),
-  so you don't have to click through Properties > Compatibility by hand
+- `[Standard]` Steam, Wine, GameMode, Lutris, MangoHud, ProtonUp-Qt, Heroic
+  (optional)
+- `[Advanced]` GE-Proton — installed and kept current automatically from
+  GitHub releases
+- `[Advanced]` Gamescope (SteamOS-style compositor, useful for
+  handheld/couch setups)
+- `[Advanced]` vkBasalt (Vulkan post-processing: sharpening, color
+  correction)
+- `[Advanced]` Per-game Proton override — writes a `CompatToolMapping` entry
+  straight into Steam's `config.vdf` for a given AppID (with an automatic
+  backup), so you don't have to click through Properties > Compatibility
 
 **Everyday apps** (`apps.sh`, all optional)
-- Discord, OBS Studio, Spotify — via Flatpak, auto-updating
-- Battle.net / EA App — neither has a native Linux build or a Flatpak, so
-  gameify hands off to Lutris's own maintained install scripts
+- `[Standard]` Discord, OBS Studio, Spotify — via Flatpak, auto-updating
+- `[Experimental]` Battle.net / EA App — neither has a native Linux build or
+  a Flatpak, so gameify hands off to Lutris's own maintained install scripts
   (`lutris:install/battlenet`, `lutris:install/ea-app`) instead of trying
   to reimplement installer logic that changes with every client update
 
-**Tweaks & auto-fixes** (`tweaks.sh`)
+**Tweaks & auto-fixes** (`tweaks.sh`, `[Standard]`)
 - Checks for a working Vulkan ICD and installs what's missing
 - Raises `vm.max_map_count` for certain Proton/UE titles
 - Adds your user to the `gamemode` group
 - Scans known Wine/Proton prefix locations for corruption (missing
   `drive_c` or `system.reg`) and offers to repair with `wineboot -u`
 
-**Bug auto-healing** (`heal.sh`)
+**Bug auto-healing** (`heal.sh`, `[Standard]`)
 - Scans the last 1-2 days of `journalctl` (system + user) and Steam's log
   directory for known error signatures and either fixes them automatically
   (reusing the exact functions above) or reports them with a concrete next
@@ -113,8 +141,9 @@ that need it, and tells you before each one.
   `update.sh` run.
 
 **Weekly maintenance** (`update.sh`)
-- Refreshes Flatpak apps, GE-Proton, and runs the auto-heal log scan —
-  none of which need a password
+- `[Standard]` Refreshes Flatpak apps and runs the auto-heal log scan —
+  neither needs a password
+- `[Advanced]` Refreshes GE-Proton, if the Advanced tier is enabled
 - When run interactively, also upgrades system packages and re-checks
   drivers
 - `./update.sh --install-cron` adds a weekly crontab entry for you (Sundays
@@ -171,7 +200,7 @@ unattended behavior if you want it:
    Description=gameify weekly update
 
    [Service]
-   ExecStart=/path/to/distrochanger/update.sh
+   ExecStart=/path/to/gameify/update.sh
 
    # ~/.config/systemd/user/gameify-update.timer
    [Timer]
@@ -209,7 +238,7 @@ This is equivalent to hand-adding:
 gameify.sh          entry point — report, menus, orchestration, final summary
 update.sh           weekly maintenance + cron install/remove (--install-cron/--remove-cron)
 detect.sh           distro/CPU/GPU/RAM/disk/refresh-rate/Secure-Boot/session detection + report
-pkgmanager.sh       apt/dnf/pacman/zypper abstraction, Flatpak helpers, change-log
+pkgmanager.sh       apt/dnf/pacman/zypper abstraction, Flatpak helpers, change-log, tier framework
 drivers.sh          per-distro, per-vendor driver install + hybrid-GPU/PRIME + default-GPU fix
 kernel.sh           optional XanMod/Liquorix/linux-zen performance kernel install + Secure Boot check
 gaming-stack.sh     Steam/Wine/GameMode/Lutris/MangoHud/ProtonUp-Qt/GE-Proton/Gamescope/vkBasalt/Heroic

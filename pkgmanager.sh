@@ -15,6 +15,91 @@ log_change() {
   echo "$1"
 }
 
+# ---------- Tiers: Standard / Advanced / Experimental ----------
+#
+# Every install/tweak in this project falls into one of three risk tiers,
+# same idea as the "safe tweaks vs advanced vs experimental" split popular
+# Windows tweak-utilities use:
+#
+#   Standard     — safe, reversible, low-risk. Native drivers, Steam/Wine/
+#                  GameMode/Lutris/MangoHud, Vulkan/vm.max_map_count/gamemode
+#                  fixes, Wine-prefix repair, Discord/OBS/Spotify. Runs by
+#                  default with no extra prompt.
+#   Advanced     — optional performance/convenience features that are still
+#                  well-tested but touch more of the system: PRIME/Optimus
+#                  auto-config, GE-Proton auto-update, Gamescope, vkBasalt,
+#                  per-game Proton override, cron automation.
+#   Experimental — cutting-edge or higher-risk: performance kernels
+#                  (XanMod/Liquorix/zen), Battle.net/EA App via Lutris
+#                  (unofficial Wine-based install path). Off unless you
+#                  explicitly opt in, and always reversible (old kernel
+#                  stays in the bootloader menu, Lutris installs are just
+#                  removable prefixes).
+#
+# ENABLE_ADVANCED / ENABLE_EXPERIMENTAL are plain "true"/"false" strings so
+# they survive being sourced across files and saved to the config file.
+
+GAMEIFY_CONFIG_DIR="$HOME/.config/gameify"
+GAMEIFY_TIER_CONFIG="$GAMEIFY_CONFIG_DIR/tiers.conf"
+
+ENABLE_ADVANCED="${ENABLE_ADVANCED:-false}"
+ENABLE_EXPERIMENTAL="${ENABLE_EXPERIMENTAL:-false}"
+
+load_tier_config() {
+  if [[ -f "$GAMEIFY_TIER_CONFIG" ]]; then
+    # shellcheck source=/dev/null
+    source "$GAMEIFY_TIER_CONFIG"
+  fi
+}
+
+save_tier_config() {
+  mkdir -p "$GAMEIFY_CONFIG_DIR"
+  cat > "$GAMEIFY_TIER_CONFIG" <<EOF
+# Written by gameify — which optional tiers to run without asking again.
+ENABLE_ADVANCED=$ENABLE_ADVANCED
+ENABLE_EXPERIMENTAL=$ENABLE_EXPERIMENTAL
+EOF
+}
+
+# Interactive tier picker — call once near the start of an interactive run.
+choose_tiers() {
+  load_tier_config
+  echo ""
+  echo "=================================================="
+  echo " Choose which tiers to enable"
+  echo "=================================================="
+  echo "  Standard     — always on: safe, reversible fixes and installs."
+  echo "  Advanced     — optional performance/convenience features"
+  echo "                 (PRIME/Optimus auto-config, GE-Proton auto-update,"
+  echo "                 Gamescope, vkBasalt, per-game Proton override, cron)."
+  echo "  Experimental — cutting-edge / higher-risk (performance kernels,"
+  echo "                 Battle.net/EA App via Lutris). Reversible, but"
+  echo "                 further from your distro's tested defaults."
+  echo ""
+  read -r -p "Enable Advanced tier? [Y/n] " a
+  a=${a:-Y}
+  [[ "$a" =~ ^[Yy]$ ]] && ENABLE_ADVANCED=true || ENABLE_ADVANCED=false
+
+  read -r -p "Enable Experimental tier? [y/N] " e
+  e=${e:-N}
+  [[ "$e" =~ ^[Yy]$ ]] && ENABLE_EXPERIMENTAL=true || ENABLE_EXPERIMENTAL=false
+
+  save_tier_config
+  echo ""
+  echo "Saved to $GAMEIFY_TIER_CONFIG — re-run 'gameify.sh --tiers' any time"
+  echo "to change this without going through the whole setup flow again."
+}
+
+# tier_enabled standard|advanced|experimental -> 0 if that tier should run
+tier_enabled() {
+  case "$1" in
+    standard) return 0 ;;
+    advanced) [[ "$ENABLE_ADVANCED" == true ]] ;;
+    experimental) [[ "$ENABLE_EXPERIMENTAL" == true ]] ;;
+    *) return 1 ;;
+  esac
+}
+
 pkg_update() {
   case "$PKG_FAMILY" in
     debian) sudo apt update ;;
