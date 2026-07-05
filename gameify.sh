@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 source "$SCRIPT_DIR/detect.sh"
 source "$SCRIPT_DIR/pkgmanager.sh"
 source "$SCRIPT_DIR/drivers.sh"
+source "$SCRIPT_DIR/kernel.sh"
 source "$SCRIPT_DIR/gaming-stack.sh"
 source "$SCRIPT_DIR/tweaks.sh"
 
@@ -51,15 +52,26 @@ pkg_update
 pkg_upgrade
 
 drivers_menu "$GPU_VENDORS"
-
+kernel_menu
 gaming_stack_menu
 system_tweaks_menu
 
 echo ""
 echo "=================================================="
-echo " All done!"
+echo " Summary — what actually changed"
 echo "=================================================="
-echo "A reboot is recommended, especially after installing/updating a GPU driver."
+if [[ "${#CHANGELOG[@]}" -eq 0 ]]; then
+  echo " Nothing needed changing — your system was already set up."
+else
+  for entry in "${CHANGELOG[@]}"; do
+    echo " - $entry"
+  done
+fi
+echo "=================================================="
+
+echo ""
+echo "A reboot is recommended, especially after installing/updating a GPU driver"
+echo "or performance kernel."
 read -r -p "Reboot now? [y/N] " reboot_now
 if [[ "$reboot_now" =~ ^[Yy]$ ]]; then
   sudo reboot

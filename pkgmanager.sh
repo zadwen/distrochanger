@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
-# lib/pkgmanager.sh — thin abstraction so the rest of the code doesn't care
+# pkgmanager.sh — thin abstraction so the rest of the code doesn't care
 # whether it's running on apt, dnf, pacman, or zypper.
 set -euo pipefail
 
-# PKG_FAMILY must be set (debian|fedora|arch|opensuse|unknown) before sourcing use.
+# PKG_FAMILY must be set (debian|fedora|arch|opensuse|unknown) before use.
+
+# Global changelog — every module appends to this so gameify.sh can print
+# a "here's what actually happened" summary at the end. Safe across sourced
+# files since bash arrays are shared in the same shell process.
+declare -a CHANGELOG 2>/dev/null || true
+
+log_change() {
+  CHANGELOG+=("$1")
+  echo "$1"
+}
 
 pkg_update() {
   case "$PKG_FAMILY" in
@@ -48,10 +58,35 @@ pkg_installed() {
   esac
 }
 
+# pkg_install_or_flatpak <native-pkg-name> <flatpak-app-or-extension-id> [label]
+# Tries the native package first; on failure, falls back to Flatpak.
+# This is the "smart fallback" used across drivers/gaming-stack when a
+# distro's repos don't have something (or the version is too old).
+pkg_install_or_flatpak() {
+  local native="$1" flatpak_id="$2" label="${3:-$1}"
+  if pkg_installed "$native" 2>/dev/null; then
+    echo "  $label already installed natively, skipping."
+    return 0
+  fi
+  if pkg_install "$native" 2>/dev/null; then
+    log_change "Installed $label (native package: $native)"
+    return 0
+  fi
+  echo "  Native package '$native' unavailable or failed — falling back to Flatpak..."
+  ensure_flatpak
+  if flatpak_install "$flatpak_id"; then
+    log_change "Installed $label (Flatpak fallback: $flatpak_id)"
+    return 0
+  fi
+  echo "  Could not install $label via native package or Flatpak."
+  return 1
+}
+
 ensure_flatpak() {
   if ! command -v flatpak >/dev/null 2>&1; then
     echo "  Installing flatpak..."
     pkg_install flatpak
+    log_change "Installed flatpak"
   fi
   if ! flatpak remote-list 2>/dev/null | grep -q flathub; then
     echo "  Adding Flathub remote..."
@@ -66,4 +101,14 @@ flatpak_install() {
     return 0
   fi
   flatpak install -y flathub "$1"
+}
+
+# Nudge Flatpak to refresh runtime GL/Vulkan extensions matching the
+# detected GPU vendor, so Flatpak games/tools get real hardware
+# acceleration instead of silently falling back to software rendering.
+ensure_flatpak_gpu_runtime() {
+  local vendor="$1"
+  ensure_flatpak
+  echo "  Refreshing Flatpak runtime GL/Vulkan extensions for $vendor..."
+  flatpak update -y >/dev/null 2>&1 || true
 }

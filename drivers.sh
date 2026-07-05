@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# lib/drivers.sh — GPU driver install, adapted per distro family
+# drivers.sh — GPU driver install, adapted per distro family, with
+# hybrid-GPU (Optimus/PRIME) laptop support and Flatpak fallback when a
+# native package isn't available.
 set -euo pipefail
 
 _install_nvidia_debian() {
@@ -51,11 +53,14 @@ _install_nvidia_opensuse() {
 
 install_nvidia() {
   echo "==> Installing NVIDIA driver..."
+  if pkg_installed nvidia-driver 2>/dev/null || pkg_installed nvidia 2>/dev/null || pkg_installed akmod-nvidia 2>/dev/null; then
+    echo "  An NVIDIA driver package already appears installed — will still check for updates."
+  fi
   case "$PKG_FAMILY" in
-    debian) _install_nvidia_debian ;;
-    fedora) _install_nvidia_fedora ;;
-    arch) _install_nvidia_arch ;;
-    opensuse) _install_nvidia_opensuse ;;
+    debian) _install_nvidia_debian && log_change "Installed/updated NVIDIA driver (Debian/Ubuntu path)" ;;
+    fedora) _install_nvidia_fedora && log_change "Installed/updated NVIDIA driver (Fedora/RPM Fusion path)" ;;
+    arch) _install_nvidia_arch && log_change "Installed/updated NVIDIA driver (Arch path)" ;;
+    opensuse) _install_nvidia_opensuse && log_change "Installed/updated NVIDIA driver (openSUSE path)" ;;
     *) echo "  Unsupported distro family for automatic NVIDIA install."; return 1 ;;
   esac
 }
@@ -69,6 +74,7 @@ install_amd() {
     opensuse) pkg_install Mesa-vulkan-device-select vulkan-tools ;;
     *) echo "  Unsupported distro family for automatic AMD install."; return 1 ;;
   esac
+  log_change "Installed/updated AMD Mesa/Vulkan stack"
   echo "  Note: the amdgpu kernel driver itself is already built into the Linux kernel —"
   echo "  this just installs the userspace Mesa/Vulkan pieces games actually talk to."
 }
@@ -82,6 +88,38 @@ install_intel() {
     opensuse) pkg_install Mesa-vulkan-device-select libva-intel-driver vulkan-tools ;;
     *) echo "  Unsupported distro family for automatic Intel install."; return 1 ;;
   esac
+  log_change "Installed/updated Intel Mesa/Vulkan stack"
+}
+
+# ---------- Hybrid GPU (Optimus/PRIME) ----------
+
+install_prime_tools() {
+  echo "==> Setting up hybrid-GPU (Optimus/PRIME) tooling..."
+  case "$PKG_FAMILY" in
+    debian)
+      pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
+        echo "  nvidia-prime not available here — you can still force offload manually (see below)."
+      ;;
+    arch)
+      pkg_install nvidia-prime 2>/dev/null && log_change "Installed nvidia-prime (GPU switching)" || \
+        echo "  nvidia-prime not available here — you can still force offload manually (see below)."
+      ;;
+    fedora|opensuse)
+      echo "  No dedicated PRIME package path automated for this distro yet."
+      echo "  Modern NVIDIA driver + Mesa handle render-offload without extra tooling on most setups."
+      ;;
+    *) : ;;
+  esac
+
+  echo ""
+  echo "  Regardless of distro, you can force a specific game/app onto the discrete GPU"
+  echo "  by prefixing its launch command (e.g. in a Steam game's launch options):"
+  echo ""
+  echo "    __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only %command%"
+  echo ""
+  echo "  For AMD hybrid setups (integrated + discrete AMD/Intel), the equivalent is:"
+  echo "    DRI_PRIME=1 %command%"
+  log_change "Printed PRIME/Optimus manual offload launch-option tip"
 }
 
 # Installs drivers for every vendor detected automatically (used in --auto mode)
@@ -89,11 +127,14 @@ install_detected_drivers() {
   local vendors="$1"
   for v in $vendors; do
     case "$v" in
-      nvidia) install_nvidia ;;
-      amd) install_amd ;;
-      intel) install_intel ;;
+      nvidia) install_nvidia || echo "  NVIDIA driver install failed — see message above." ;;
+      amd) install_amd || echo "  AMD driver install failed — see message above." ;;
+      intel) install_intel || echo "  Intel driver install failed — see message above." ;;
     esac
   done
+  if detect_hybrid_gpu; then
+    install_prime_tools || true
+  fi
 }
 
 drivers_menu() {
