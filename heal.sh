@@ -17,10 +17,12 @@ _steam_log_dirs() {
 
 _journal_recent() {
   # Last 24h of user-session journal, quietly no-op if journalctl/logind
-  # aren't available (some minimal/container setups).
+  # aren't available (some minimal/container setups). Hard-timeout each
+  # call — a huge or corrupt journal can make journalctl take a very long
+  # time otherwise, with no way to tell "still working" from "hung".
   if command -v journalctl >/dev/null 2>&1; then
-    journalctl --user -S -1d -p warning 2>/dev/null || true
-    journalctl -S -1d -p warning 2>/dev/null || true
+    timeout 10s journalctl --user -S -1d -p warning 2>/dev/null || true
+    timeout 10s journalctl -S -1d -p warning 2>/dev/null || true
   fi
 }
 
@@ -28,7 +30,7 @@ _steam_logs_recent() {
   local dir
   while IFS= read -r dir; do
     [[ -z "$dir" ]] && continue
-    find "$dir" -maxdepth 1 -type f -mtime -2 -print0 2>/dev/null \
+    timeout 10s find "$dir" -maxdepth 1 -type f -mtime -2 -print0 2>/dev/null \
       | xargs -0 -r cat -- 2>/dev/null
   done < <(_steam_log_dirs)
 }
@@ -135,6 +137,10 @@ heal_check_32bit_missing() {
 
 run_auto_heal() {
   echo "==> Scanning journalctl + Steam logs for known gaming error patterns (last ~24-48h)..."
+  if prompt_skip_countdown "This can take a few seconds on systems with large journals" 5 s; then
+    echo "  Skipped log scan."
+    return 0
+  fi
   local combined
   combined="$( { _journal_recent; echo; _steam_logs_recent; } || true )"
 

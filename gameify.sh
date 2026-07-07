@@ -18,6 +18,11 @@ Options:
                 normal run to audit exactly what gameify would touch.
   --tiers       Just open the Standard/Advanced/Experimental tier picker
                 and exit, without running the rest of the setup flow.
+  --game-mode on|off|toggle|status
+                Instantly flip the global Game Mode switch (CPU governor,
+                RAM cache, file-descriptor limits, compositor pause) and
+                exit immediately — no report, no menus. This is the fast
+                path for "I'm about to play" / "I'm done gaming".
   --version     Print the version and exit.
   --help, -h    Print this help and exit.
 
@@ -47,6 +52,7 @@ source "$SCRIPT_DIR/gaming-stack.sh"
 source "$SCRIPT_DIR/tweaks.sh"
 source "$SCRIPT_DIR/apps.sh"
 source "$SCRIPT_DIR/heal.sh"
+source "$SCRIPT_DIR/gamemode-toggle.sh"
 
 if [[ "${EUID}" -eq 0 ]]; then
   echo "Please run this as a normal user, not root/sudo directly."
@@ -60,6 +66,29 @@ for arg in "$@"; do
     exit 0
   fi
 done
+
+# Fast path: --game-mode on|off|toggle|status flips the global switch and
+# exits immediately, deliberately skipping the report/menus/tier picker —
+# this is meant to be a one-second "I'm about to play" / "I'm done" action,
+# not a trip through the full setup flow.
+GAME_MODE_ACTION=""
+prev_arg=""
+for arg in "$@"; do
+  if [[ "$prev_arg" == "--game-mode" ]]; then
+    GAME_MODE_ACTION="$arg"
+  fi
+  prev_arg="$arg"
+done
+if [[ -n "$GAME_MODE_ACTION" ]]; then
+  case "$GAME_MODE_ACTION" in
+    on) gamemode_on ;;
+    off) gamemode_off ;;
+    toggle) gamemode_toggle ;;
+    status) echo "Game Mode is currently: $(gamemode_status)" ;;
+    *) echo "Usage: --game-mode on|off|toggle|status"; exit 1 ;;
+  esac
+  exit 0
+fi
 
 echo "=================================================="
 echo " Gameify $GAMEIFY_VERSION — turn any Linux distro into a gaming rig"
@@ -102,6 +131,7 @@ gaming_stack_menu
 apps_menu
 system_tweaks_menu
 auto_heal_menu
+game_mode_menu
 
 echo ""
 echo "=================================================="

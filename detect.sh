@@ -129,6 +129,8 @@ detect_disk_type() {
 # available source since not all of these exist on every session type.
 detect_refresh_rates() {
   local out=""
+
+  # X11 — xrandr marks the active mode with '*'.
   if command -v xrandr >/dev/null 2>&1 && [[ "${XDG_SESSION_TYPE:-}" != "wayland" ]]; then
     out="$(xrandr --query 2>/dev/null | awk '
       /connected/ {name=$1}
@@ -138,6 +140,24 @@ detect_refresh_rates() {
         }
       }')"
   fi
+
+  # Hyprland — hyprctl is the reliable source here; Hyprland's wlr-output-
+  # management support is partial/version-dependent, so don't rely on
+  # wlr-randr first on this compositor specifically.
+  if [[ -z "$out" ]] && command -v hyprctl >/dev/null 2>&1; then
+    if command -v jq >/dev/null 2>&1; then
+      out="$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | "\(.name) \(.refreshRate)"' 2>/dev/null)"
+    else
+      out="$(hyprctl monitors 2>/dev/null | awk '
+        /^Monitor/ {name=$2}
+        /@ /       {for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) print name, $i}')"
+    fi
+  fi
+
+  # Sway and other wlroots-based compositors that implement wlr-randr.
+  # (Does NOT work on GNOME/KDE Wayland — those don't expose this protocol;
+  # there's no universal CLI for them, so we're honest about "unknown" below
+  # rather than guessing.)
   if [[ -z "$out" ]] && command -v wlr-randr >/dev/null 2>&1; then
     out="$(wlr-randr 2>/dev/null | awk '
       /^[A-Za-z]/ {name=$1}
@@ -145,16 +165,20 @@ detect_refresh_rates() {
         for (i=1;i<=NF;i++) if ($i ~ /Hz/) { gsub(/Hz.*/,"",$i); print name, $i }
       }')"
   fi
-  if [[ -z "$out" ]]; then
-    # Last-resort fallback: kernel DRM info (works headless/without X libs).
-    for card in /sys/class/drm/*/modes; do
-      [[ -f "$card" ]] || continue
-      local mode conn
-      mode="$(head -n1 "$card" 2>/dev/null)"
-      conn="$(basename "$(dirname "$card")")"
-      [[ -n "$mode" ]] && out+="$conn ${mode}"$'\n'
-    done
+
+  if [[ -z "$out" ]] && command -v swaymsg >/dev/null 2>&1; then
+    out="$(swaymsg -t get_outputs 2>/dev/null | awk -F'[:,]' '
+      /"name"/ {gsub(/[" ]/,"",$2); name=$2}
+      /"refresh"/ {gsub(/[^0-9]/,"",$2); if ($2!="") print name, $2/1000}')"
   fi
+
+  # Deliberately no resolution-based fallback here — a previous version of
+  # this function fell back to /sys/class/drm/*/modes, which lists
+  # supported *resolutions* (e.g. "1920x1080") with no refresh-rate field
+  # at all. Parsing "1920" out of "1920x1080" and reporting it as Hz was a
+  # real bug (a 1920x1080@60 panel would misreport as "1920 Hz"). Better to
+  # say "unknown" than to fabricate a confident-looking wrong number.
+
   echo "$out" | sed '/^$/d'
 }
 
@@ -258,8 +282,10 @@ print_system_report() {
   if [[ "$refresh" == "unknown" ]]; then
     if [[ "$session" == "wayland" ]]; then
       echo ""
-      echo "NOTE: couldn't read refresh rate under Wayland — install 'wlr-randr'"
-      echo "(compositor-dependent) for gameify to detect it next run."
+      echo "NOTE: couldn't read refresh rate under Wayland. If you're on Hyprland,"
+      echo "make sure 'hyprctl' is on PATH (it should be by default). On Sway,"
+      echo "'swaymsg' should already work. GNOME/KDE Wayland don't expose a CLI"
+      echo "for this, so 'unknown' there is expected, not a bug."
     fi
   else
     local hz_num="${refresh%% Hz}"

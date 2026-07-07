@@ -155,6 +155,31 @@ is_interactive() {
   [[ -t 0 ]]
 }
 
+# prompt_skip_countdown "message" seconds key
+# Shows a countdown and returns 0 (skip) if `key` is pressed before time
+# runs out, 1 (proceed) otherwise — no Enter key needed. Used to bail out
+# of a scan/loop that's about to take a while, without forcing a yes/no
+# prompt for something that defaults to "just proceed" anyway. Piped/
+# non-interactive contexts can't read a keypress at all, so they skip the
+# wait and proceed immediately rather than blocking forever on `read`.
+prompt_skip_countdown() {
+  local prompt="$1" seconds="${2:-5}" key="${3:-s}" i ans
+  if ! is_interactive; then
+    return 1
+  fi
+  for ((i=seconds; i>0; i--)); do
+    printf '\r  %s (press "%s" to skip — %ds) ' "$prompt" "$key" "$i"
+    if read -r -s -n 1 -t 1 ans 2>/dev/null; then
+      if [[ "${ans,,}" == "$key" ]]; then
+        printf '\n  Skipped.\n'
+        return 0
+      fi
+    fi
+  done
+  printf '\n'
+  return 1
+}
+
 # ask_yn "Prompt text" Y|N -> prints "y" or "n" (also honors DRY_RUN=false;
 # this only affects prompting, not whether the resulting action runs for
 # real — pair with `tier_enabled`/`$DRY_RUN` checks as usual).
