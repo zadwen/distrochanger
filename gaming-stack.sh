@@ -241,7 +241,8 @@ set_proton_for_game() {
 
   cp "$vdf" "$vdf.gameify.bak"
 
-  python3 - "$vdf" "$appid" "$tool" <<'PYEOF'
+  local result=0
+  python3 - "$vdf" "$appid" "$tool" <<'PYEOF' || result=$?
 import re, sys
 path, appid, tool = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, "r", encoding="utf-8", errors="surrogateescape") as f:
@@ -271,7 +272,6 @@ if re.search(r'"CompatToolMapping"', data):
 else:
     print("no-section")
 PYEOF
-  local result=$?
   if [[ $result -ne 0 ]] || ! command -v python3 >/dev/null 2>&1; then
     echo "  python3 not available — can't safely edit config.vdf automatically."
     echo "  Fallback: set it manually in Steam under the game's Properties >"
